@@ -121,7 +121,7 @@ def list_menu_items(session: Session, *, active_only: bool = False) -> List[Menu
     statement = select(MenuItem)
     if active_only:
         statement = statement.where(MenuItem.is_active.is_(True))
-    statement = statement.order_by(MenuItem.id.asc())
+    statement = statement.order_by(MenuItem.priority.asc(), MenuItem.name.asc())
     return list(session.exec(statement))
 
 
@@ -142,6 +142,7 @@ def create_menu_item(session: Session, data: dict) -> MenuItem:
         slug=slug,
         name=data["name"],
         default_price=data.get("default_price", 0),
+        priority=data.get("priority", 100),
         is_active=data.get("is_active", True),
         description=data.get("description"),
         created_at=now,
@@ -188,6 +189,7 @@ def ensure_default_menu_items(session: Session) -> None:
                 slug=item["slug"],
                 name=item["name"],
                 default_price=item["default_price"],
+                priority=item.get("priority", 100),
                 is_active=True,
                 created_at=now,
                 updated_at=now,

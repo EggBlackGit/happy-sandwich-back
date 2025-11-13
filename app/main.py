@@ -12,6 +12,7 @@ from sqlmodel import Session
 from . import crud, schemas
 from .config import get_settings
 from .database import engine, get_session, init_db
+from .notifier import notify_new_order
 
 app = FastAPI(title="Happy Sandwich Orders", version="0.1.0")
 settings = get_settings()
@@ -30,11 +31,6 @@ def on_startup() -> None:
     init_db()
     with Session(engine) as session:
         crud.ensure_default_menu_items(session)
-
-
-# def verify_access_key(x_access_key: Annotated[str | None, Header(alias="X-Access-Key", default=None)]) -> None:
-#     if settings.access_key and x_access_key != settings.access_key:
-#         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid access key")
 
 def verify_access_key(
     x_access_key: Annotated[str | None, Header(alias="X-Access-Key")] = None
@@ -63,7 +59,12 @@ def get_options(
     menu_items = crud.list_menu_items(session, active_only=True)
     return schemas.OptionsResponse(
         menu_items=[
-            schemas.MenuOption(id=item.slug, name=item.name, default_price=item.default_price)
+            schemas.MenuOption(
+                id=item.slug,
+                name=item.name,
+                default_price=item.default_price,
+                priority=item.priority,
+            )
             for item in menu_items
         ],
     )
@@ -143,7 +144,10 @@ def create_order(
     order_dict["menu_item_name"] = menu_meta.name
     if order_dict.get("price") is None or order_dict.get("price", 0) <= 0:
         order_dict["price"] = menu_meta.default_price * order_dict.get("quantity", 1)
-    return crud.create_order(session, order_dict)
+    order = crud.create_order(session, order_dict)
+    print(1111)
+    notify_new_order(order)
+    return order
 
 
 @app.put("/orders/{order_id}", response_model=schemas.OrderRead)

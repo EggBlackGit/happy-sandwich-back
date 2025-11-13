@@ -53,6 +53,7 @@ class MenuOption(BaseModel):
     id: str
     name: str
     default_price: float
+    priority: int
 
 
 class MenuItemBase(BaseModel):
@@ -61,6 +62,7 @@ class MenuItemBase(BaseModel):
     default_price: float
     is_active: bool = True
     description: Optional[str] = None
+    priority: int = 100
 
 
 class MenuItemCreate(MenuItemBase):
@@ -73,6 +75,7 @@ class MenuItemUpdate(BaseModel):
     default_price: Optional[float] = None
     is_active: Optional[bool] = None
     description: Optional[str] = None
+    priority: Optional[int] = None
 
 
 class MenuItemRead(MenuItemBase):
