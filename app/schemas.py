@@ -114,3 +114,9 @@ class MenuOrdersGroup(BaseModel):
     menu_item_id: str
     menu_item_name: str
     orders: List[MenuGroupedOrder]
+
+
+class PaymentBulkUpdate(BaseModel):
+    start_date: date
+    end_date: date
+    is_paid: bool = True

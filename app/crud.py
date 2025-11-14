@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, time
 from typing import List
 
 from sqlalchemy import case, func
@@ -25,7 +25,7 @@ def get_order(session: Session, order_id: int) -> Order | None:
 
 
 def create_order(session: Session, data: dict) -> Order:
-    now = datetime.utcnow()
+    now = datetime.now()
     order = Order(**data)
     order.order_date = order.order_date or now
     order.created_at = now
@@ -41,7 +41,7 @@ def update_order(session: Session, order: Order, updates: dict) -> Order:
         if value is None:
             continue
         setattr(order, key, value)
-    order.updated_at = datetime.utcnow()
+    order.updated_at = datetime.now()
     session.add(order)
     session.commit()
     session.refresh(order)
@@ -117,6 +117,27 @@ def group_orders_by_menu(session: Session) -> List[dict]:
 # Menu operations
 # -------------------------
 
+def update_payment_status_by_date(
+    session: Session,
+    start_date: datetime,
+    end_date: datetime,
+    is_paid: bool,
+) -> int:
+    statement = (
+        select(Order)
+        .where(Order.order_date >= start_date)
+        .where(Order.order_date <= end_date)
+        .where(Order.is_paid != is_paid)
+    )
+    orders = session.exec(statement).all()
+    for order in orders:
+        order.is_paid = is_paid
+        order.updated_at = datetime.utcnow()
+        session.add(order)
+    session.commit()
+    return len(orders)
+
+
 def list_menu_items(session: Session, *, active_only: bool = False) -> List[MenuItem]:
     statement = select(MenuItem)
     if active_only:
@@ -137,7 +158,7 @@ def get_menu_item_by_slug(session: Session, slug: str) -> MenuItem | None:
 def create_menu_item(session: Session, data: dict) -> MenuItem:
     slug = data.get("slug") or data.get("name") or ""
     slug = _generate_unique_slug(session, slug)
-    now = datetime.utcnow()
+    now = datetime.now()
     item = MenuItem(
         slug=slug,
         name=data["name"],
@@ -161,7 +182,7 @@ def update_menu_item(session: Session, menu_item: MenuItem, updates: dict) -> Me
         if value is None:
             continue
         setattr(menu_item, key, value)
-    menu_item.updated_at = datetime.utcnow()
+    menu_item.updated_at = datetime.now()
     session.add(menu_item)
     session.commit()
     session.refresh(menu_item)
@@ -182,7 +203,7 @@ def ensure_default_menu_items(session: Session) -> None:
     existing_count = session.exec(select(func.count(MenuItem.id))).one()
     if existing_count:
         return
-    now = datetime.utcnow()
+    now = datetime.now()
     for item in DEFAULT_MENU_ITEMS:
         session.add(
             MenuItem(

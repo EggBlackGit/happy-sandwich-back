@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+from datetime import datetime, time
 from typing import Annotated, List
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Response, status
@@ -182,6 +183,23 @@ def delete_order(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
     crud.delete_order(session, order)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.post("/orders/mark-paid")
+def bulk_update_order_payment(
+    payload: schemas.PaymentBulkUpdate,
+    _: AccessGuard,
+    session: Session = Depends(get_session),
+):
+    start_dt = datetime.combine(payload.start_date, time.min)
+    end_dt = datetime.combine(payload.end_date, time.max)
+    updated = crud.update_payment_status_by_date(
+        session=session,
+        start_date=start_dt,
+        end_date=end_dt,
+        is_paid=payload.is_paid,
+    )
+    return {"updated": updated, "is_paid": payload.is_paid}
 
 
 @app.get("/reports/summary", response_model=schemas.SummaryResponse)
