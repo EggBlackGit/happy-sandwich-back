@@ -41,13 +41,13 @@ def _broadcast(token: str, text: str) -> None:
 
 
 def notify_new_order(order: Order) -> None:
-    print(2)
     settings = get_settings()
+    if settings.line_channel_access_token:
+        logger.error("line_channel_access_token is empty")
     token = settings.line_channel_access_token
     targets: Iterable[str] = settings.line_target_ids
     if not token:
         return
-    print(3)
     text = (
         "มีออเดอร์ใหม่!\n"
         f"ลูกค้า: {order.customer_name}\n"
@@ -57,9 +57,7 @@ def notify_new_order(order: Order) -> None:
     )
 
     if targets:
-        print(4)
         for recipient in targets:
             _push(recipient, token, text)
     else:
-        print(5)
         _broadcast(token, text)
