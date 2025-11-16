@@ -42,7 +42,7 @@ def _broadcast(token: str, text: str) -> None:
 
 def notify_new_order(order: Order) -> None:
     settings = get_settings()
-    if settings.line_channel_access_token:
+    if settings.line_channel_access_token is None:
         logger.error("line_channel_access_token is empty")
     token = settings.line_channel_access_token
     targets: Iterable[str] = settings.line_target_ids

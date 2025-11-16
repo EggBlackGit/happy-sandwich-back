@@ -146,7 +146,6 @@ def create_order(
     if order_dict.get("price") is None or order_dict.get("price", 0) <= 0:
         order_dict["price"] = menu_meta.default_price * order_dict.get("quantity", 1)
     order = crud.create_order(session, order_dict)
-    print(1111)
     notify_new_order(order)
     return order
 
