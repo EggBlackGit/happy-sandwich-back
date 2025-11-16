@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, time
+from datetime import date, datetime, time
 from typing import List
 
 from sqlalchemy import case, func
@@ -53,11 +53,19 @@ def delete_order(session: Session, order: Order) -> None:
     session.commit()
 
 
-def compute_summary(session: Session) -> dict:
-    total_orders = session.exec(select(func.count(Order.id))).one()
-    unpaid_orders = session.exec(select(func.count()).where(Order.is_paid == False)).one()  # noqa: E712
-    total_quantity = session.exec(select(func.coalesce(func.sum(Order.quantity), 0))).one()
+def compute_summary(session: Session, start_date: date | None = None, end_date: date | None = None) -> dict:
+    start = start_date or datetime.now().date()
+    end = end_date or start
+    day_start = datetime.combine(start, time.min)
+    day_end = datetime.combine(end, time.max)
 
+    date_filter = (Order.order_date >= day_start, Order.order_date <= day_end)
+
+    total_orders = session.exec(select(func.count(Order.id)).where(*date_filter)).one()
+    unpaid_orders = session.exec(select(func.count()).where(Order.is_paid == False, *date_filter)).one()  # noqa: E712
+    total_quantity = session.exec(select(func.coalesce(func.sum(Order.quantity), 0)).where(*date_filter)).one()
+
+    priority_expr = func.coalesce(MenuItem.priority, 1000000)
     breakdown_stmt = (
         select(
             Order.menu_item_id,
@@ -67,9 +75,13 @@ def compute_summary(session: Session) -> dict:
                 func.sum(case((Order.is_paid == False, Order.quantity), else_=0)),  # noqa: E712
                 0,
             ),
+            priority_expr,
         )
+        .join(MenuItem, MenuItem.slug == Order.menu_item_id, isouter=True)
+        .where(*date_filter)
         .group_by(Order.menu_item_id, Order.menu_item_name)
-        .order_by(Order.menu_item_name)
+        .group_by(MenuItem.priority)
+        .order_by(priority_expr.asc(), Order.menu_item_name)
     )
     breakdown = [
         {
@@ -77,6 +89,7 @@ def compute_summary(session: Session) -> dict:
             "menu_item_name": row[1],
             "total_quantity": int(row[2] or 0),
             "unpaid_quantity": int(row[3] or 0),
+            "priority": row[4],
         }
         for row in session.exec(breakdown_stmt).all()
     ]

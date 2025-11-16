@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
-from datetime import datetime, time
+from datetime import date, datetime, time
 from typing import Annotated, List
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Response, status
@@ -13,7 +13,7 @@ from sqlmodel import Session
 from . import crud, schemas
 from .config import get_settings
 from .database import engine, get_session, init_db
-from .notifier import notify_new_order
+from .notifier import notify_order_event
 
 app = FastAPI(title="Happy Sandwich Orders", version="0.1.0")
 settings = get_settings()
@@ -146,7 +146,8 @@ def create_order(
     if order_dict.get("price") is None or order_dict.get("price", 0) <= 0:
         order_dict["price"] = menu_meta.default_price * order_dict.get("quantity", 1)
     order = crud.create_order(session, order_dict)
-    notify_new_order(order)
+    menu_breakdown = crud.compute_summary(session)["menu_breakdown"]
+    notify_order_event(order, menu_breakdown, action="create")
     return order
 
 
@@ -168,7 +169,10 @@ def update_order(
             updates["price"] = menu_meta.default_price * updates.get("quantity", order.quantity)
     if not updates:
         return order
-    return crud.update_order(session, order, updates)
+    updated_order = crud.update_order(session, order, updates)
+    menu_breakdown = crud.compute_summary(session)["menu_breakdown"]
+    notify_order_event(updated_order, menu_breakdown, action="update")
+    return updated_order
 
 
 @app.delete("/orders/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -181,6 +185,8 @@ def delete_order(
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
     crud.delete_order(session, order)
+    menu_breakdown = crud.compute_summary(session)["menu_breakdown"]
+    notify_order_event(order, menu_breakdown, action="delete")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -203,10 +209,12 @@ def bulk_update_order_payment(
 
 @app.get("/reports/summary", response_model=schemas.SummaryResponse)
 def summary(
-    _: AccessGuard,
+    start_date: date | None = None,
+    end_date: date | None = None,
+    _: AccessGuard = None,
     session: Session = Depends(get_session),
 ):
-    data = crud.compute_summary(session)
+    data = crud.compute_summary(session, start_date=start_date, end_date=end_date)
     return schemas.SummaryResponse(**data)
 
 

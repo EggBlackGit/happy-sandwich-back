@@ -94,6 +94,7 @@ class MenuSummary(BaseModel):
     menu_item_name: str
     total_quantity: int
     unpaid_quantity: int
+    priority: int
 
 
 class SummaryResponse(BaseModel):

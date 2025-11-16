@@ -1,5 +1,5 @@
-﻿import logging
-from typing import Iterable
+import logging
+from typing import Iterable, List
 
 import httpx
 
@@ -40,20 +40,40 @@ def _broadcast(token: str, text: str) -> None:
     _post_line(LINE_BROADCAST_URL, token, payload)
 
 
-def notify_new_order(order: Order) -> None:
+def _format_menu_breakdown(breakdown: List[dict]) -> str:
+    if not breakdown:
+        return "- ยังไม่มีรายการ"
+    lines = []
+    for item in breakdown:
+        total = item.get("total_quantity", 0)
+        name = item.get("menu_item_name", "เมนูไม่ทราบชื่อ")
+        lines.append(f"- {name}: {total} ชิ้น")
+    return "\n".join(lines)
+
+
+def notify_order_event(order: Order, menu_breakdown: List[dict], action: str) -> None:
+    """Send LINE notification for an order event and include menu summary."""
     settings = get_settings()
-    if settings.line_channel_access_token is None:
-        logger.error("line_channel_access_token is empty")
     token = settings.line_channel_access_token
     targets: Iterable[str] = settings.line_target_ids
     if not token:
         return
+
+    status_text = "ชำระแล้ว" if order.is_paid else "ยังไม่ชำระ"
+    prefix = {
+        "create": "🆕 มีออเดอร์ใหม่ 🟢🟢🟢",
+        "update": "✏️ อัปเดตออเดอร์ 🟡🟡🟡",
+        "delete": "🗑️ ลบออเดอร์ 🔴🔴🔴",
+    }.get(action, "📦 ออเดอร์")
+
     text = (
-        "มีออเดอร์ใหม่!\n"
+        f"{prefix}\n"
         f"ลูกค้า: {order.customer_name}\n"
         f"เมนู: {order.menu_item_name} x{order.quantity}\n"
         f"ราคา: {order.price:.0f} บาท\n"
-        f"สถานะ: {'ชำระแล้ว' if order.is_paid else 'ยังไม่ชำระ'}"
+        f"สถานะ: {status_text}\n"
+        "\nรายการที่ต้องทำตอนนี้:\n"
+        f"{_format_menu_breakdown(menu_breakdown)}"
     )
 
     if targets:
